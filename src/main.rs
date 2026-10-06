@@ -8,15 +8,17 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 use time::{Date, macros::date};
 
+mod persistencia;
+
 time::serde::format_description!(date_format, Date, "[year]-[month]-[day]");
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, sqlx::FromRow)]
 pub struct Person {
     pub id: Uuid,
-    #[serde(rename = "apelido")]
-    pub apelido: String,
     #[serde(rename = "nome")]
     pub nome: String,
+    #[serde(rename = "apelido")]
+    pub apelido: String,
     #[serde(rename = "nascimento", with = "date_format")]
     pub nascimento: Date,
     pub stack: Option<Vec<String>>,
@@ -24,10 +26,10 @@ pub struct Person {
 
 #[derive(Clone, Deserialize)]
 pub struct NewPerson {
-    #[serde(rename = "apelido")]
-    pub apelido: Nick,
     #[serde(rename = "nome")]
     pub nome: PersonName,
+    #[serde(rename = "apelido")]
+    pub apelido: Nick,
     #[serde(rename = "nascimento", with = "date_format")]
     pub nascimento: Date,
     pub stack: Option<Vec<Tech>>,
@@ -99,8 +101,8 @@ async fn main() {
 
     let person1 = Person {
         id: Uuid::now_v7(),
-        apelido: "Lívius".to_string(),
         nome: "livinho".to_string(),
+        apelido: "Lívius".to_string(),
         nascimento: date!(1990 - 01 - 01),
         stack: Some(vec!["Rust".to_string(), "JavaScript".to_string()]),
     };
@@ -141,18 +143,16 @@ async fn create_person(
     State(people): State<AppState>,
     Json(new_person): Json<NewPerson>
 ) -> impl IntoResponse {
-
     let id = Uuid::now_v7();
     let person = Person {
         id,
-        apelido: new_person.apelido.0,
         nome: new_person.nome.0,
+        apelido: new_person.apelido.0,
         nascimento: new_person.nascimento,
         stack: new_person
             .stack
             .map(|stack| stack.into_iter().map(String::from).collect()),
     };
-
     people.lock().await.insert(id, person.clone());
     (StatusCode::OK, Json(person))
 }
